@@ -52,7 +52,7 @@ const defaultLife=()=>life.map(([title,start,end],i)=>({id:'life'+i,title,start,
 const defaults=()=>({title:'똑딱똑딱! 시계 놀이터',className:'',intro:'그림을 보고, 바늘을 돌리며 시간을 만나요.',pin:'0000',sound:true,start:'home',stages:[true,true,true,false,false],games:[true,true,true,true,true],cards:defaultCards(),life:defaultLife(),targets:'04:00, 08:00, 12:00, 15:00, 09:30, 16:30',rounds:4,half:false,hint:'both',timers:'1, 3, 5'});
 const KEY='clock-playground-v1';
 let cfg=defaults(),db,storeMode='memory',writeQueue=Promise.resolve(),saveTicket=0;
-let view='home', historyStack=[], authorized=false, stage=0, total=480, activeHand='minute', matchClock=0, mode=4, pickedCards=new Set(), cardCount=4, adminTab='basic';
+let view='home', historyStack=[], authorized=false, stage=0, total=480, activeHand='minute', matchClock=0, mode=4, pickedCards=new Set(), cardPage=0, adminTab='basic';
 let quiz={round:0,total:0,target:240,hint:false,done:false},pair={index:0,done:false},day=480,sequence=[2,0,7,1,3],selectedSeq=-1;
 let timer={duration:60,remaining:60000,end:0,active:false};
 const mod=(x,n)=>((x%n)+n)%n;
@@ -99,7 +99,7 @@ function say(text){if(cfg.sound&&'speechSynthesis'in window){try{const u=new Spe
 let audioContext;
 function unlockAudio(){if(!cfg.sound)return;const Audio=window.AudioContext||window.webkitAudioContext;if(Audio){audioContext??=new Audio();audioContext.resume().catch(()=>{})}}
 function chime(){if(!cfg.sound)return;try{unlockAudio();if(!audioContext)return;[523,659].forEach((freq,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain(),t=audioContext.currentTime+i*.11;o.frequency.value=freq;g.gain.setValueAtTime(.065,t);g.gain.exponentialRampToValueAtTime(.001,t+.24);o.connect(g).connect(audioContext.destination);o.start(t);o.stop(t+.25)})}catch{}}
-function go(to){if(view===to)return;if(view==='admin')authorized=false;if(to==='home'){historyStack=[];authorized=false}else historyStack.push(view);view=to;render();window.scrollTo(0,0)}
+function go(to){if(view===to)return;if(to==='sheets')cardPage=0;if(view==='admin')authorized=false;if(to==='home'){historyStack=[];authorized=false}else historyStack.push(view);view=to;render();window.scrollTo(0,0)}
 function back(){if(modal.open){modal.close();return}if(view==='admin')authorized=false;view=historyStack.pop()||'home';render();window.scrollTo(0,0)}
 const button=(label,attrs='')=>'<button type="button" '+attrs+'>'+label+'</button>';
 const tile=(key,label,attr,desc='')=>'<button class="tile" '+attr+'>'+pic(key)+'<span class="label">'+escapeHTML(label)+(desc?'<small>'+escapeHTML(desc)+'</small>':'')+'</span></button>';
@@ -157,8 +157,8 @@ function cardMarkup(c,detail=false){return '<article class="sheet">'+pic(c.img,c
 function openCard(c){modal.innerHTML='<div class="bar">'+button('목록으로','data-close')+button('설명 듣기','data-card-say="'+escapeHTML(c.id)+'"')+button('PNG 저장','data-png="'+escapeHTML(c.id)+'"')+'</div><div data-close-card>'+cardMarkup(c,true)+'</div><p class="status" id="pngStatus" role="status"></p>';modal.showModal()}
 modal.addEventListener('close',()=>{const link=$('#pngStatus a');if(link)URL.revokeObjectURL(link.href)});
 function sheets(){
- const items=shownCards(),pages=Math.ceil(items.length/mode);cardCount=Math.min(cardCount,pages-1);
- return title('그림 설명 카드 모아 보기')+'<div class="row">'+[4,6,12].map(n=>button(n+'장 보기','data-mode="'+n+'" aria-pressed="'+(mode===n)+'"')).join('')+button('이전 묶음','data-sheet="-1" '+(cardCount===0?'disabled':''))+button('다음 묶음','data-sheet="1" '+(cardCount===pages-1?'disabled':''))+'<span>'+(cardCount+1)+' / '+pages+'</span></div><div class="row">'+button('A4 한 장에 1개','data-print="1"')+button('A4 한 장에 4개','data-print="4"')+button('A3 모아 인쇄','data-print="12"')+'</div><p>카드를 고르면 선택한 카드만 인쇄해요. 선택하지 않으면 보이는 주제를 모두 인쇄해요.</p><div class="sheet-grid" style="--cols:'+(mode===4?2:mode===6?3:4)+'">'+items.slice(cardCount*mode,(cardCount+1)*mode).map(c=>'<div><label class="inline"><input type="checkbox" data-pick="'+escapeHTML(c.id)+'" '+(pickedCards.has(c.id)?'checked':'')+'> 인쇄 선택</label>'+cardMarkup(c)+button('크게 보기','data-card="'+escapeHTML(c.id)+'"')+'</div>').join('')+'</div>';
+ const items=shownCards(),pages=Math.ceil(items.length/mode);cardPage=Math.max(0,Math.min(cardPage,pages-1));
+ return title('그림 설명 카드 모아 보기')+'<div class="row">'+[4,6,12].map(n=>button(n+'장 보기','data-mode="'+n+'" aria-pressed="'+(mode===n)+'"')).join('')+button('이전 묶음','data-sheet="-1" '+(cardPage===0?'disabled':''))+button('다음 묶음','data-sheet="1" '+(cardPage===pages-1?'disabled':''))+'<span>'+(cardPage+1)+' / '+pages+'</span></div><div class="row">'+button('A4 한 장에 1개','data-print="1"')+button('A4 한 장에 4개','data-print="4"')+button('A3 모아 인쇄','data-print="12"')+'</div><p>카드를 고르면 선택한 카드만 인쇄해요. 선택하지 않으면 보이는 주제를 모두 인쇄해요.</p><div class="sheet-grid" style="--cols:'+(mode===4?2:mode===6?3:4)+'">'+items.slice(cardPage*mode,(cardPage+1)*mode).map(c=>'<div><label class="inline"><input type="checkbox" data-pick="'+escapeHTML(c.id)+'" '+(pickedCards.has(c.id)?'checked':'')+'> 인쇄 선택</label>'+cardMarkup(c)+button('크게 보기','data-card="'+escapeHTML(c.id)+'"')+'</div>').join('')+'</div>';
 }
 async function printCards(n){
  const chosen=shownCards().filter(c=>pickedCards.has(c.id)), list=chosen.length?chosen:shownCards(), el=$('#print');
@@ -305,7 +305,7 @@ document.addEventListener('click',async e=>{
  if(d.card){const c=shownCards().find(x=>x.id===d.card);if(c)openCard(c);return}
  if(d.cardSay){const c=shownCards().find(x=>x.id===d.cardSay);if(c)say(c.title+'. '+c.desc);return}
  if(d.png){const c=shownCards().find(x=>x.id===d.png);if(c)cardPNG(c);return}
- if(d.print){printCards(+d.print);return}if(d.mode){mode=+d.mode;cardCount=0;render();return}if(d.sheet){cardCount+=+d.sheet;render();return}
+ if(d.print){printCards(+d.print);return}if(d.mode){mode=+d.mode;cardPage=0;render();return}if(d.sheet){cardPage+=+d.sheet;render();return}
  if(d.handChoice){handSelect(d.handChoice);return}
  if(d.step){const step=activeHand==='hour'?60:increment(d.kind);setTime(d.kind,value(d.kind)+Number(d.step)*step);return}
  if(has('ampm')){setTime('clock',total+(mod(total,1440)<720?720:-720));return}
